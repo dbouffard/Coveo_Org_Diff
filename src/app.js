@@ -2,6 +2,36 @@ function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function areEqual(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) {
+      return false;
+    }
+
+    return left.every((leftValue, index) => areEqual(leftValue, right[index]));
+  }
+
+  if (isObject(left) && isObject(right)) {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    if (leftKeys.length !== rightKeys.length) {
+      return false;
+    }
+
+    return leftKeys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(right, key) &&
+        areEqual(left[key], right[key]),
+    );
+  }
+
+  return false;
+}
+
 export function diffJson(left, right, basePath = "") {
   const allKeys = new Set([
     ...Object.keys(left || {}),
@@ -32,7 +62,7 @@ export function diffJson(left, right, basePath = "") {
       continue;
     }
 
-    if (JSON.stringify(leftValue) !== JSON.stringify(rightValue)) {
+    if (!areEqual(leftValue, rightValue)) {
       differences.push({
         path,
         type: "changed",

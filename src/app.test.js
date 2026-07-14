@@ -23,3 +23,28 @@ test("diffJson reports added, removed, and changed fields", () => {
     { left: "legacy", path: "removed", type: "removed" },
   ]);
 });
+
+test("diffJson compares arrays deeply", () => {
+  assert.deepEqual(
+    diffJson(
+      { pipelines: ["A", { model: "v1" }] },
+      { pipelines: ["A", { model: "v1" }] },
+    ),
+    [],
+  );
+
+  assert.deepEqual(
+    diffJson(
+      { pipelines: ["A", { model: "v1" }] },
+      { pipelines: ["A", { model: "v2" }] },
+    ),
+    [
+      {
+        path: "pipelines",
+        type: "changed",
+        left: ["A", { model: "v1" }],
+        right: ["A", { model: "v2" }],
+      },
+    ],
+  );
+});
