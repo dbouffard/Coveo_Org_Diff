@@ -1,25 +1,13 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Coveo Org Diff</title>
   </head>
   <body>
-    <h1>Coveo Org Diff</h1>
-    <p>Upload two JSON files to compare their content.</p>
-
-    <label for="left-json">Source (before) organization JSON</label>
-    <input id="left-json" type="file" accept=".json,application/json" />
-    <br />
-    <label for="right-json">Target (after) organization JSON</label>
-    <input id="right-json" type="file" accept=".json,application/json" />
-    <br />
-    <button id="compare-button" type="button">Compare</button>
-
-    <h2>Diff result</h2>
-    <pre id="diff-output" aria-live="polite" aria-atomic="true">No comparison run yet.</pre>
-
-    <script type="module" src="./src/app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
