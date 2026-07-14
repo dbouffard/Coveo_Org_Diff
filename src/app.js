@@ -33,29 +33,31 @@ function areEqual(left, right) {
 }
 
 export function diffJson(left, right, basePath = "") {
+  const safeLeft = left ?? {};
+  const safeRight = right ?? {};
   const allKeys = new Set([
-    ...Object.keys(left || {}),
-    ...Object.keys(right || {}),
+    ...Object.keys(safeLeft),
+    ...Object.keys(safeRight),
   ]);
   const differences = [];
 
   for (const key of allKeys) {
     const path = basePath ? `${basePath}.${key}` : key;
-    const hasLeft = Object.prototype.hasOwnProperty.call(left, key);
-    const hasRight = Object.prototype.hasOwnProperty.call(right, key);
+    const hasLeft = Object.prototype.hasOwnProperty.call(safeLeft, key);
+    const hasRight = Object.prototype.hasOwnProperty.call(safeRight, key);
 
     if (!hasLeft) {
-      differences.push({ path, type: "added", right: right[key] });
+      differences.push({ path, type: "added", right: safeRight[key] });
       continue;
     }
 
     if (!hasRight) {
-      differences.push({ path, type: "removed", left: left[key] });
+      differences.push({ path, type: "removed", left: safeLeft[key] });
       continue;
     }
 
-    const leftValue = left[key];
-    const rightValue = right[key];
+    const leftValue = safeLeft[key];
+    const rightValue = safeRight[key];
 
     if (isObject(leftValue) && isObject(rightValue)) {
       differences.push(...diffJson(leftValue, rightValue, path));
@@ -77,7 +79,11 @@ export function diffJson(left, right, basePath = "") {
 
 export async function parseJsonFile(file) {
   const text = await file.text();
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`"${file.name}" is not valid JSON`);
+  }
 }
 
 async function runComparison() {
@@ -107,8 +113,6 @@ async function runComparison() {
 if (typeof document !== "undefined") {
   const compareButton = document.getElementById("compare-button");
   if (compareButton) {
-    compareButton.addEventListener("click", () => {
-      runComparison();
-    });
+    compareButton.addEventListener("click", runComparison);
   }
 }

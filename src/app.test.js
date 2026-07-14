@@ -48,3 +48,17 @@ test("diffJson compares arrays deeply", () => {
     ],
   );
 });
+
+test("diffJson handles empty and null inputs", () => {
+  assert.deepEqual(diffJson({}, {}), []);
+  assert.deepEqual(diffJson({ a: null }, { a: null }), []);
+  assert.deepEqual(diffJson({ a: null }, { a: undefined }), [
+    { path: "a", type: "changed", left: null, right: undefined },
+  ]);
+  assert.deepEqual(diffJson(null, { feature: true }), [
+    { path: "feature", type: "added", right: true },
+  ]);
+  assert.deepEqual(diffJson({ feature: true }, null), [
+    { path: "feature", type: "removed", left: true },
+  ]);
+});
