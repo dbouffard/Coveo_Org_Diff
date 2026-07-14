@@ -228,7 +228,7 @@ export default function App() {
       const text = await readFileAsText(file);
       const parsed: unknown = JSON.parse(text);
       if (!isCoveoSnapshot(parsed)) {
-        setError('File does not appear to be a Coveo organisation snapshot (missing "resources" key).');
+        setError('File does not appear to be a Coveo organization snapshot (missing "resources" key).');
         setState(null);
         return;
       }
@@ -264,7 +264,7 @@ export default function App() {
       <header className="app-header">
         <h1>Coveo Org Diff</h1>
         <p className="subtitle">
-          Upload two Coveo organisation JSON snapshots to compare their
+          Upload two Coveo organization JSON snapshots to compare their
           configurations.
         </p>
       </header>
@@ -311,7 +311,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Coveo Org Diff — organisation snapshot comparison tool</p>
+        <p>Coveo Org Diff — organization snapshot comparison tool</p>
       </footer>
     </div>
   );

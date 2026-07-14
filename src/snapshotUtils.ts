@@ -1,5 +1,5 @@
 /**
- * Coveo organisation snapshot utilities.
+ * Coveo organization snapshot utilities.
  *
  * A Coveo snapshot JSON looks like:
  * {
@@ -15,14 +15,14 @@
  *
  * Resources are matched by their key (resourceName).
  * Fields listed in COVEO_ID_FIELDS are excluded from the diff because they
- * are organisation-specific unique identifiers that will always differ.
+ * are organization-specific unique identifiers that will always differ.
  */
 
 import { diffValues, countChanges } from './diffUtils';
 import type { DiffEntry } from './diffUtils';
 
 // ---------------------------------------------------------------------------
-// Fields that contain organisation-unique IDs or volatile timestamps and
+// Fields that contain organization-unique IDs or volatile timestamps and
 // should therefore be excluded when comparing resource configurations.
 // ---------------------------------------------------------------------------
 export const COVEO_ID_FIELDS: ReadonlySet<string> = new Set([
@@ -124,7 +124,7 @@ export interface SnapshotComparisonResult {
 // Detection
 // ---------------------------------------------------------------------------
 
-/** Returns true if the value looks like a Coveo organisation snapshot. */
+/** Returns true if the value looks like a Coveo organization snapshot. */
 export function isCoveoSnapshot(obj: unknown): obj is CoveoSnapshot {
   if (obj === null || typeof obj !== 'object') return false;
   const r = (obj as Record<string, unknown>).resources;
@@ -201,6 +201,8 @@ export function compareSnapshots(
       }
     }
 
+    // added   = present in right (prod) but not left (non-prod)
+    // removed = present in left (non-prod) but not right (prod)
     totalAdded += rightOnly.length;
     totalRemoved += leftOnly.length;
     totalChanged += changed.length;

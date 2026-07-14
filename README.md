@@ -1,12 +1,12 @@
 # Coveo Org Diff
 
-A TypeScript + React web application that compares two Coveo organisation JSON snapshots and displays differences **per resource type** (Source, Extension, Query Pipeline, Field, etc.).
+A TypeScript + React web application that compares two Coveo organization JSON snapshots and displays differences **per resource type** (Source, Extension, Query Pipeline, Field, etc.).
 
 ## Features
 
 - **File upload** — upload two Coveo snapshot JSON files (no size limit)
 - **Per-type report** — results grouped by resource type (SOURCE, QUERY_PIPELINE, EXTENSION, FIELD, …)
-- **ID-aware** — unique IDs (`id`, `orgId`, timestamps, …) are excluded from the diff so organisation-specific identifiers never show as differences
+- **ID-aware** — unique IDs (`id`, `orgId`, timestamps, …) are excluded from the diff so organization-specific identifiers never show as differences
 - **Four states per resource**: ± Changed · + Added · − Removed · = Identical
 - **Expandable diffs** — click any changed resource to see exactly which fields changed
 - **Dark-mode** support
