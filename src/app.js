@@ -81,8 +81,8 @@ export async function parseJsonFile(file) {
   const text = await file.text();
   try {
     return JSON.parse(text);
-  } catch {
-    throw new Error(`"${file.name}" is not valid JSON`);
+  } catch (error) {
+    throw new Error(`"${file.name}" is not valid JSON: ${error.message}`);
   }
 }
 
