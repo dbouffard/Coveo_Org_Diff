@@ -1,0 +1,9 @@
+npm install -g @coveo/cli
+coveo auth:login
+coveo org:resources:pull
+
+
+coveo auth:login --region ca
+coveo auth:login --region ca --organization bchydrononproduction17axe4fui
+
+
