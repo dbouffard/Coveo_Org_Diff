@@ -1,132 +1,296 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import './App.css';
-import { diffValues, countChanges } from './diffUtils';
-import type { DiffEntry } from './diffUtils';
-import { DiffTree } from './DiffTree';
+import { isCoveoSnapshot, compareSnapshots } from './snapshotUtils';
+import type { CoveoSnapshot, SnapshotComparisonResult } from './snapshotUtils';
+import { OrgDiffReport } from './OrgDiffReport';
 
-const SAMPLE_LEFT = JSON.stringify(
-  {
-    organizationId: 'myorg',
-    sources: [
-      { id: 'source1', name: 'Web Source', type: 'WEB', pushEnabled: false },
-      { id: 'source2', name: 'Salesforce', type: 'SALESFORCE', pushEnabled: true },
-    ],
-    pipelines: [
-      { id: 'pipe1', name: 'Default Pipeline', condition: '' },
-    ],
-    extensions: [],
+// ---------------------------------------------------------------------------
+// Sample snapshots (realistic Coveo format)
+// ---------------------------------------------------------------------------
+
+const SAMPLE_NON_PROD: CoveoSnapshot = {
+  id: 'nonprod-snapshot-aaaaaa',
+  orgId: 'myorgnonprodabc123',
+  resources: {
+    SOURCE: {
+      WebCrawler: {
+        resourceName: 'WebCrawler',
+        id: 'nonprod-src-001',
+        name: 'Web Crawler',
+        sourceType: 'WEB',
+        pushEnabled: false,
+        logicalIndex: 'default',
+        urls: ['https://example.com'],
+      },
+      Salesforce: {
+        resourceName: 'Salesforce',
+        id: 'nonprod-src-002',
+        name: 'Salesforce',
+        sourceType: 'SALESFORCE',
+        pushEnabled: true,
+        logicalIndex: 'default',
+        credentials: { username: 'admin@example.com' },
+      },
+    },
+    QUERY_PIPELINE: {
+      Default: {
+        resourceName: 'Default',
+        id: 'nonprod-pipe-001',
+        name: 'Default',
+        condition: null,
+        splitTestEnabled: false,
+      },
+    },
+    EXTENSION: {
+      BoostFreshContent: {
+        resourceName: 'BoostFreshContent',
+        id: 'nonprod-ext-001',
+        name: 'Boost Fresh Content',
+        content: 'document.add_meta_data({"boost": 1.0})',
+        enabled: true,
+      },
+    },
+    FIELD: {
+      author: {
+        resourceName: 'author',
+        name: 'author',
+        type: 'STRING',
+        includedInQuery: true,
+        mergeWithLexicon: false,
+      },
+      date: {
+        resourceName: 'date',
+        name: 'date',
+        type: 'DATE',
+        includedInQuery: false,
+        mergeWithLexicon: false,
+      },
+    },
   },
-  null,
-  2,
-);
+};
 
-const SAMPLE_RIGHT = JSON.stringify(
-  {
-    organizationId: 'myorg',
-    sources: [
-      { id: 'source1', name: 'Web Source', type: 'WEB', pushEnabled: true },
-      { id: 'source3', name: 'SharePoint', type: 'SHAREPOINT', pushEnabled: false },
-    ],
-    pipelines: [
-      { id: 'pipe1', name: 'Default Pipeline', condition: 'country == "CA"' },
-      { id: 'pipe2', name: 'Mobile Pipeline', condition: '' },
-    ],
-    extensions: [{ id: 'ext1', name: 'Boost Extension' }],
+const SAMPLE_PROD: CoveoSnapshot = {
+  id: 'prod-snapshot-bbbbbb',
+  orgId: 'myorgprodxyz789',
+  resources: {
+    SOURCE: {
+      WebCrawler: {
+        resourceName: 'WebCrawler',
+        id: 'prod-src-001',
+        name: 'Web Crawler',
+        sourceType: 'WEB',
+        pushEnabled: true, // changed: false → true
+        logicalIndex: 'default',
+        urls: ['https://example.com', 'https://blog.example.com'], // changed: added URL
+      },
+      SharePoint: {
+        // added in prod
+        resourceName: 'SharePoint',
+        id: 'prod-src-003',
+        name: 'SharePoint',
+        sourceType: 'SHAREPOINT',
+        pushEnabled: false,
+        logicalIndex: 'default',
+      },
+      // Salesforce removed in prod
+    },
+    QUERY_PIPELINE: {
+      Default: {
+        resourceName: 'Default',
+        id: 'prod-pipe-001',
+        name: 'Default',
+        condition: 'country == "CA"', // changed
+        splitTestEnabled: false,
+      },
+      Mobile: {
+        // added in prod
+        resourceName: 'Mobile',
+        id: 'prod-pipe-002',
+        name: 'Mobile',
+        condition: 'userAgent contains "Mobile"',
+        splitTestEnabled: false,
+      },
+    },
+    EXTENSION: {
+      BoostFreshContent: {
+        resourceName: 'BoostFreshContent',
+        id: 'prod-ext-001',
+        name: 'Boost Fresh Content',
+        content: 'document.add_meta_data({"boost": 2.5})', // changed
+        enabled: true,
+      },
+    },
+    FIELD: {
+      author: {
+        resourceName: 'author',
+        name: 'author',
+        type: 'STRING',
+        includedInQuery: true, // same
+        mergeWithLexicon: false,
+      },
+      date: {
+        resourceName: 'date',
+        name: 'date',
+        type: 'DATE',
+        includedInQuery: false, // same
+        mergeWithLexicon: false,
+      },
+    },
   },
-  null,
-  2,
-);
+};
 
-function parseJson(raw: string): { value: unknown; error: string | null } {
-  try {
-    return { value: JSON.parse(raw), error: null };
-  } catch (e) {
-    return { value: null, error: (e as Error).message };
+// ---------------------------------------------------------------------------
+// File upload panel
+// ---------------------------------------------------------------------------
+
+interface FileUploadPanelProps {
+  label: string;
+  fileName: string | null;
+  error: string | null;
+  onFileChange: (file: File) => void;
+}
+
+function FileUploadPanel({ label, fileName, error, onFileChange }: FileUploadPanelProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) onFileChange(file);
   }
+
+  return (
+    <section className="upload-panel">
+      <h2 className="upload-label">{label}</h2>
+      <div
+        className={`drop-zone${error ? ' drop-zone-error' : ''}${fileName ? ' drop-zone-loaded' : ''}`}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        aria-label={`Upload ${label} snapshot file`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".json,application/json"
+          className="file-input-hidden"
+          onChange={handleChange}
+        />
+        {fileName ? (
+          <span className="drop-zone-filename">📄 {fileName}</span>
+        ) : (
+          <>
+            <span className="drop-zone-icon">📂</span>
+            <span className="drop-zone-text">Click to select a JSON snapshot file</span>
+          </>
+        )}
+      </div>
+      {error && <p className="error-message">⚠ {error}</p>}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
+interface SnapshotState {
+  fileName: string;
+  snapshot: CoveoSnapshot;
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
 }
 
 export default function App() {
-  const [leftText, setLeftText] = useState('');
-  const [rightText, setRightText] = useState('');
-  const [diffResult, setDiffResult] = useState<DiffEntry[] | null>(null);
+  const [left, setLeft] = useState<SnapshotState | null>(null);
+  const [right, setRight] = useState<SnapshotState | null>(null);
   const [leftError, setLeftError] = useState<string | null>(null);
   const [rightError, setRightError] = useState<string | null>(null);
+  const [result, setResult] = useState<SnapshotComparisonResult | null>(null);
+
+  async function handleFile(
+    file: File,
+    side: 'left' | 'right',
+  ) {
+    const setError = side === 'left' ? setLeftError : setRightError;
+    const setState = side === 'left' ? setLeft : setRight;
+    setError(null);
+    setResult(null);
+
+    try {
+      const text = await readFileAsText(file);
+      const parsed: unknown = JSON.parse(text);
+      if (!isCoveoSnapshot(parsed)) {
+        setError('File does not appear to be a Coveo organisation snapshot (missing "resources" key).');
+        setState(null);
+        return;
+      }
+      setState({ fileName: file.name, snapshot: parsed });
+    } catch {
+      setError('Invalid JSON file — could not parse.');
+      setState(null);
+    }
+  }
 
   function handleCompare() {
-    const left = parseJson(leftText);
-    const right = parseJson(rightText);
-
-    setLeftError(left.error);
-    setRightError(right.error);
-
-    if (left.error || right.error) {
-      setDiffResult(null);
-      return;
-    }
-
-    const result = diffValues(left.value, right.value);
-    setDiffResult(result);
+    if (!left || !right) return;
+    setResult(compareSnapshots(left.snapshot, right.snapshot));
   }
 
   function handleLoadSample() {
-    setLeftText(SAMPLE_LEFT);
-    setRightText(SAMPLE_RIGHT);
-    setDiffResult(null);
+    setLeft({ fileName: 'non-prod-sample.json', snapshot: SAMPLE_NON_PROD });
+    setRight({ fileName: 'prod-sample.json', snapshot: SAMPLE_PROD });
     setLeftError(null);
     setRightError(null);
+    setResult(null);
   }
 
-  const changeCount = diffResult ? countChanges(diffResult) : 0;
+  const leftLabel = left?.snapshot.orgId
+    ? `Non-Prod (${left.snapshot.orgId})`
+    : 'Non-Prod';
+  const rightLabel = right?.snapshot.orgId
+    ? `Prod (${right.snapshot.orgId})`
+    : 'Prod';
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>Coveo Org Diff</h1>
         <p className="subtitle">
-          Compare two Coveo organization JSON snapshots and inspect the
-          differences.
+          Upload two Coveo organisation JSON snapshots to compare their
+          configurations.
         </p>
       </header>
 
       <main className="app-main">
-        <div className="input-row">
-          <section className="input-panel">
-            <h2>Original Snapshot</h2>
-            <textarea
-              className={`json-input${leftError ? ' input-error' : ''}`}
-              placeholder="Paste the original organization JSON snapshot here…"
-              value={leftText}
-              onChange={(e) => {
-                setLeftText(e.target.value);
-                setLeftError(null);
-              }}
-              spellCheck={false}
-            />
-            {leftError && (
-              <p className="error-message">⚠ Invalid JSON: {leftError}</p>
-            )}
-          </section>
-
-          <section className="input-panel">
-            <h2>New Snapshot</h2>
-            <textarea
-              className={`json-input${rightError ? ' input-error' : ''}`}
-              placeholder="Paste the new organization JSON snapshot here…"
-              value={rightText}
-              onChange={(e) => {
-                setRightText(e.target.value);
-                setRightError(null);
-              }}
-              spellCheck={false}
-            />
-            {rightError && (
-              <p className="error-message">⚠ Invalid JSON: {rightError}</p>
-            )}
-          </section>
+        <div className="upload-row">
+          <FileUploadPanel
+            label="Non-Prod Snapshot"
+            fileName={left?.fileName ?? null}
+            error={leftError}
+            onFileChange={(f) => handleFile(f, 'left')}
+          />
+          <FileUploadPanel
+            label="Prod Snapshot"
+            fileName={right?.fileName ?? null}
+            error={rightError}
+            onFileChange={(f) => handleFile(f, 'right')}
+          />
         </div>
 
         <div className="action-row">
-          <button className="btn btn-primary" onClick={handleCompare}>
+          <button
+            className="btn btn-primary"
+            onClick={handleCompare}
+            disabled={!left || !right}
+          >
             Compare
           </button>
           <button className="btn btn-secondary" onClick={handleLoadSample}>
@@ -134,41 +298,20 @@ export default function App() {
           </button>
         </div>
 
-        {diffResult !== null && (
+        {result !== null && (
           <section className="diff-section">
-            <div className="diff-header">
-              <h2>Differences</h2>
-              {diffResult.length === 0 ? (
-                <span className="badge badge-same">✓ No differences found</span>
-              ) : (
-                <span className="badge badge-changes">
-                  {changeCount} change{changeCount !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-
-            {diffResult.length === 0 ? (
-              <p className="no-diff">
-                The two snapshots are identical.
-              </p>
-            ) : (
-              <>
-                <div className="diff-legend">
-                  <span className="legend-item legend-added">+ Added</span>
-                  <span className="legend-item legend-removed">− Removed</span>
-                  <span className="legend-item legend-changed">± Changed</span>
-                </div>
-                <div className="diff-container">
-                  <DiffTree entries={diffResult} />
-                </div>
-              </>
-            )}
+            <h2 className="diff-section-title">Comparison Report</h2>
+            <OrgDiffReport
+              result={result}
+              leftLabel={leftLabel}
+              rightLabel={rightLabel}
+            />
           </section>
         )}
       </main>
 
       <footer className="app-footer">
-        <p>Coveo Org Diff — JSON snapshot comparison tool</p>
+        <p>Coveo Org Diff — organisation snapshot comparison tool</p>
       </footer>
     </div>
   );

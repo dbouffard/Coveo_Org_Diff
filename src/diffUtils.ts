@@ -16,17 +16,23 @@ export interface DiffEntry {
   children?: DiffEntry[];
 }
 
+const EMPTY_KEYS: ReadonlySet<string> = new Set();
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**
  * Deep-compare two values and produce a tree of DiffEntry records.
+ *
+ * @param excludeKeys - Object keys to skip entirely during comparison.
+ *   Useful for ignoring organisation-unique IDs, timestamps, etc.
  */
 export function diffValues(
   left: unknown,
   right: unknown,
   path = '',
+  excludeKeys: ReadonlySet<string> = EMPTY_KEYS,
 ): DiffEntry[] {
   // Both are plain objects → recurse into each key
   if (isObject(left) && isObject(right)) {
@@ -34,6 +40,8 @@ export function diffValues(
     const results: DiffEntry[] = [];
 
     for (const key of [...allKeys].sort()) {
+      if (excludeKeys.has(key)) continue;
+
       const childPath = path ? `${path}.${key}` : key;
       const hasLeft = Object.prototype.hasOwnProperty.call(left, key);
       const hasRight = Object.prototype.hasOwnProperty.call(right, key);
@@ -43,16 +51,11 @@ export function diffValues(
       } else if (!hasRight) {
         results.push(collectRemoved(left[key], childPath));
       } else {
-        const childDiff = diffValues(left[key], right[key], childPath);
+        const childDiff = diffValues(left[key], right[key], childPath, excludeKeys);
         if (childDiff.length === 0) {
-          // No change – omit leaf, or keep a collapsed 'unchanged' node
           continue;
         }
-        // If it's a single leaf change return it directly, otherwise group
-        if (
-          childDiff.length === 1 &&
-          childDiff[0].path === childPath
-        ) {
+        if (childDiff.length === 1 && childDiff[0].path === childPath) {
           results.push(childDiff[0]);
         } else {
           results.push({
@@ -79,12 +82,9 @@ export function diffValues(
       } else if (i >= right.length) {
         results.push(collectRemoved(left[i], childPath));
       } else {
-        const childDiff = diffValues(left[i], right[i], childPath);
+        const childDiff = diffValues(left[i], right[i], childPath, excludeKeys);
         if (childDiff.length > 0) {
-          if (
-            childDiff.length === 1 &&
-            childDiff[0].path === childPath
-          ) {
+          if (childDiff.length === 1 && childDiff[0].path === childPath) {
             results.push(childDiff[0]);
           } else {
             results.push({
