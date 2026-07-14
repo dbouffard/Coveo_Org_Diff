@@ -1,4 +1,4 @@
-# Coveo_Org_Diff
+# coveo-org-diff
 
 Compares two Coveo organization JSON exports.
 
